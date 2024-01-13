@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<div id="chat-history"></div>
+
+<script>
+  let responseDiv = document.createElement('div');
+
+  let interrupt = new AbortController();
+  let chatHistory = document.getElementById('chat-history');
+
+  const data = { model: 'saikatkumardey/tinyllama:latest', prompt: 'Qual seu nome?', context: undefined };
+  const ollama_host = "http://localhost:11434";
+  function postRequest(data, signal) {
+    const URL = `${ollama_host}/api/generate`;
+    return fetch(URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data),
+      signal: signal
+    });
+  }
+
+  postRequest(data, interrupt.signal).then(async response => {
+    await getResponse(response, parsedResponse => {
+      let word = parsedResponse.response;
+      chatHistory.innerHTML += word;
+      if (parsedResponse.done) {
+        /// done
+      if (word != undefined) {
+        responseDiv.hidden_text += word;
+      }
+    }})
+  })
+          .then(() => {
+           // stopButton.remove(); // Remove stop button from DOM now that all text has been generated
+            //spinner.remove();
+          })
+          .catch(error => {
+            if (error !== 'Stop button pressed') {
+              console.error(error);
+            }
+          });
+
+
+
+
+   /// get response
+  async function getResponse(response, callback) {
+    const reader = response.body.getReader();
+
+    let partialLine = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      // Decode the received value and split by lines
+      const textChunk = new TextDecoder().decode(value);
+      console.log(textChunk)
+
+      const lines = (partialLine + textChunk).split('\n');
+      partialLine = lines.pop(); // The last line might be incomplete
+      for (const line of lines) {
+        if (line.trim() === '') continue;
+        const parsedResponse = JSON.parse(line);
+        callback(parsedResponse); // Process each response word
+      }
+    }
+
+    // Handle any remaining line
+    if (partialLine.trim() !== '') {
+      const parsedResponse = JSON.parse(partialLine);
+      callback(parsedResponse);
+    }
+  }
+
+</script>
+</body>
+</html>
